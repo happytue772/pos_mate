@@ -1,4 +1,4 @@
-enum StockMovementType { sale, restock, refund, adjustment }
+enum StockMovementType { sale, restock, refund, adjustment, disposal }
 
 extension StockMovementTypeLabel on StockMovementType {
   String get label {
@@ -14,6 +14,9 @@ extension StockMovementTypeLabel on StockMovementType {
 
       case StockMovementType.adjustment:
         return '재고 조정';
+
+      case StockMovementType.disposal:
+        return '폐기';
     }
   }
 }
@@ -29,6 +32,7 @@ class StockMovement {
     required this.afterStock,
     required this.createdAt,
     this.referenceId,
+    this.memo,
   });
 
   final int id;
@@ -46,4 +50,6 @@ class StockMovement {
   final DateTime createdAt;
 
   final String? referenceId;
+
+  final String? memo;
 }

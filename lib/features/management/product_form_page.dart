@@ -17,18 +17,17 @@ class _ProductFormPageState extends State<ProductFormPage> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _barcodeController;
-
   late final TextEditingController _nameController;
-
-  late final TextEditingController _categoryController;
-
+  late final TextEditingController _subCategoryController;
   late final TextEditingController _priceController;
-
   late final TextEditingController _stockController;
-
   late final TextEditingController _minimumStockController;
 
+  late ProductCategory _category;
+
   bool _adultProduct = false;
+
+  DateTime? _expirationDate;
 
   bool get isEdit => widget.product != null;
 
@@ -42,7 +41,9 @@ class _ProductFormPageState extends State<ProductFormPage> {
 
     _nameController = TextEditingController(text: product?.name ?? '');
 
-    _categoryController = TextEditingController(text: product?.category ?? '');
+    _subCategoryController = TextEditingController(
+      text: product?.subCategory ?? '',
+    );
 
     _priceController = TextEditingController(
       text: product?.price.toString() ?? '',
@@ -56,14 +57,18 @@ class _ProductFormPageState extends State<ProductFormPage> {
       text: product?.minimumStock.toString() ?? '0',
     );
 
+    _category = product?.category ?? ProductCategory.beverage;
+
     _adultProduct = product?.adultProduct ?? false;
+
+    _expirationDate = product?.expirationDate;
   }
 
   @override
   void dispose() {
     _barcodeController.dispose();
     _nameController.dispose();
-    _categoryController.dispose();
+    _subCategoryController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     _minimumStockController.dispose();
@@ -89,6 +94,35 @@ class _ProductFormPageState extends State<ProductFormPage> {
     return null;
   }
 
+  Future<void> _selectExpirationDate() async {
+    final now = DateTime.now();
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _expirationDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 3650)),
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _expirationDate = selected;
+    });
+  }
+
+  String _formatDate(DateTime date) {
+    String two(int value) {
+      return value.toString().padLeft(2, '0');
+    }
+
+    return '${date.year}-'
+        '${two(date.month)}-'
+        '${two(date.day)}';
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -107,7 +141,7 @@ class _ProductFormPageState extends State<ProductFormPage> {
 
     final name = _nameController.text.trim();
 
-    final category = _categoryController.text.trim();
+    final subCategory = _subCategoryController.text.trim();
 
     final price = int.parse(_priceController.text);
 
@@ -119,20 +153,25 @@ class _ProductFormPageState extends State<ProductFormPage> {
       pos.addProduct(
         barcode: barcode,
         name: name,
-        category: category,
+        category: _category,
+        subCategory: subCategory,
         price: price,
         stock: stock,
         minimumStock: minimumStock,
         adultProduct: _adultProduct,
+        expirationDate: _expirationDate,
       );
     } else {
       final updated = widget.product!.copyWith(
         barcode: barcode,
         name: name,
-        category: category,
+        category: _category,
+        subCategory: subCategory,
         price: price,
         minimumStock: minimumStock,
         adultProduct: _adultProduct,
+        expirationDate: _expirationDate,
+        clearExpirationDate: _expirationDate == null,
       );
 
       pos.updateProduct(updated);
@@ -158,7 +197,9 @@ class _ProductFormPageState extends State<ProductFormPage> {
               ),
               validator: _requiredValidator,
             ),
+
             const SizedBox(height: 12),
+
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -167,16 +208,46 @@ class _ProductFormPageState extends State<ProductFormPage> {
               ),
               validator: _requiredValidator,
             ),
+
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _categoryController,
+
+            DropdownButtonFormField<ProductCategory>(
+              initialValue: _category,
               decoration: const InputDecoration(
-                labelText: '카테고리',
+                labelText: '대분류',
+                border: OutlineInputBorder(),
+              ),
+              items: ProductCategory.values.map((category) {
+                return DropdownMenuItem(
+                  value: category,
+                  child: Text(category.label),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+
+                setState(() {
+                  _category = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: _subCategoryController,
+              decoration: const InputDecoration(
+                labelText: '중분류',
+                hintText: '예: 탄산음료 / 컵라면 / 도시락',
                 border: OutlineInputBorder(),
               ),
               validator: _requiredValidator,
             ),
+
             const SizedBox(height: 12),
+
             TextFormField(
               controller: _priceController,
               keyboardType: TextInputType.number,
@@ -186,7 +257,9 @@ class _ProductFormPageState extends State<ProductFormPage> {
               ),
               validator: _numberValidator,
             ),
+
             const SizedBox(height: 12),
+
             TextFormField(
               controller: _stockController,
               keyboardType: TextInputType.number,
@@ -197,7 +270,9 @@ class _ProductFormPageState extends State<ProductFormPage> {
               ),
               validator: _numberValidator,
             ),
+
             const SizedBox(height: 12),
+
             TextFormField(
               controller: _minimumStockController,
               keyboardType: TextInputType.number,
@@ -207,9 +282,13 @@ class _ProductFormPageState extends State<ProductFormPage> {
               ),
               validator: _numberValidator,
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(height: 12),
+
             SwitchListTile(
+              contentPadding: EdgeInsets.zero,
               title: const Text('성인 상품'),
+              subtitle: const Text('주류 / 담배 등 판매 전 성인 확인 필요'),
               value: _adultProduct,
               onChanged: (value) {
                 setState(() {
@@ -217,7 +296,33 @@ class _ProductFormPageState extends State<ProductFormPage> {
                 });
               },
             ),
-            const SizedBox(height: 16),
+
+            const Divider(),
+
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('유통기한'),
+              subtitle: Text(
+                _expirationDate == null
+                    ? '유통기한 관리 안 함'
+                    : _formatDate(_expirationDate!),
+              ),
+              trailing: const Icon(Icons.calendar_month),
+              onTap: _selectExpirationDate,
+            ),
+
+            if (_expirationDate != null)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _expirationDate = null;
+                  });
+                },
+                child: const Text('유통기한 제거'),
+              ),
+
+            const SizedBox(height: 20),
+
             FilledButton(
               onPressed: _save,
               child: Text(isEdit ? '수정 저장' : '상품 등록'),

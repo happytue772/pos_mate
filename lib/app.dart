@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'features/auth/login_page.dart';
 import 'providers/auth_provider.dart';
 import 'providers/pos_provider.dart';
+import 'providers/shift_provider.dart';
 
 class PosMateApp extends StatelessWidget {
   const PosMateApp({super.key});
@@ -14,6 +15,7 @@ class PosMateApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => PosProvider()),
+        ChangeNotifierProvider(create: (_) => ShiftProvider()),
       ],
       child: MaterialApp(
         title: 'POS Mate',

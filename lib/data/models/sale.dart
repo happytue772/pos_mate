@@ -17,7 +17,7 @@ extension PaymentMethodLabel on PaymentMethod {
   }
 }
 
-enum SaleStatus { completed, refunded }
+enum SaleStatus { completed, partiallyRefunded, refunded }
 
 extension SaleStatusLabel on SaleStatus {
   String get label {
@@ -25,8 +25,11 @@ extension SaleStatusLabel on SaleStatus {
       case SaleStatus.completed:
         return '결제 완료';
 
+      case SaleStatus.partiallyRefunded:
+        return '부분 환불';
+
       case SaleStatus.refunded:
-        return '환불 완료';
+        return '전체 환불';
     }
   }
 }
@@ -34,6 +37,7 @@ extension SaleStatusLabel on SaleStatus {
 class Sale {
   Sale({
     required this.id,
+    required this.shiftId,
     required this.receiptNumber,
     required this.items,
     required this.totalAmount,
@@ -47,7 +51,11 @@ class Sale {
   });
 
   final int id;
+
+  final int shiftId;
+
   final String receiptNumber;
+
   final List<SaleItem> items;
 
   final int totalAmount;
@@ -59,9 +67,18 @@ class Sale {
   final DateTime soldAt;
 
   final int? receivedAmount;
+
   final int? changeAmount;
 
   SaleStatus status;
 
   DateTime? refundedAt;
+
+  int get refundedAmount {
+    return items.fold<int>(0, (sum, item) => sum + item.refundedAmount);
+  }
+
+  int get netAmount {
+    return totalAmount - refundedAmount;
+  }
 }

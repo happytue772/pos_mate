@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/pos_provider.dart';
 import 'product_form_page.dart';
+import '../../data/models/product.dart';
 
 class ProductManagePage extends StatelessWidget {
   const ProductManagePage({super.key});
@@ -21,10 +22,11 @@ class ProductManagePage extends StatelessWidget {
           return ListTile(
             title: Text(product.name),
             subtitle: Text(
-              '${product.category} · '
-              '${product.price}원 · '
-              '재고 ${product.stock}개',
+              '${product.category.label} / ${product.subCategory}\n'
+              '${product.price}원 · 재고 ${product.stock}개\n'
+              '${product.expirationLabel}',
             ),
+            isThreeLine: true,
             onTap: () {
               Navigator.push(
                 context,
