@@ -2,24 +2,48 @@ import 'package:flutter/material.dart';
 
 import '../data/demo/demo_products.dart';
 import '../data/models/product.dart';
+import '../data/models/sale.dart';
+import '../data/models/sale_item.dart';
+import '../data/models/stock_movement.dart';
 
 class PosProvider extends ChangeNotifier {
   final List<Product> _products = createDemoProducts();
 
   final Map<int, int> _cart = {};
 
-  int _nextProductId = 6;
+  final List<Sale> _sales = [];
 
-  int _completedSales = 0;
-  int _totalSalesAmount = 0;
+  final List<StockMovement> _stockMovements = [];
+
+  int _nextProductId = 6;
+  int _nextSaleId = 1;
+  int _nextStockMovementId = 1;
 
   List<Product> get products => List.unmodifiable(_products);
 
   Map<int, int> get cart => Map.unmodifiable(_cart);
 
-  int get completedSales => _completedSales;
+  List<Sale> get sales {
+    return List.unmodifiable(_sales.reversed);
+  }
 
-  int get totalSalesAmount => _totalSalesAmount;
+  List<StockMovement> get stockMovements {
+    return List.unmodifiable(_stockMovements.reversed);
+  }
+
+  int get completedSales {
+    return _sales.where((sale) => sale.status == SaleStatus.completed).length;
+  }
+
+  int get refundedSales {
+    return _sales.where((sale) => sale.status == SaleStatus.refunded).length;
+  }
+
+  int get totalSalesAmount {
+    return _sales
+        .where((sale) => sale.status == SaleStatus.completed)
+        .fold(0, (sum, sale) => sum + sale.totalAmount);
+  }
 
   int quantityOf(int productId) {
     return _cart[productId] ?? 0;
@@ -69,25 +93,158 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool checkout() {
-    if (_cart.isEmpty) {
-      return false;
-    }
+  void clearCart() {
+    _cart.clear();
 
-    final saleAmount = cartTotal;
+    notifyListeners();
+  }
+
+  Sale? checkout({
+    required PaymentMethod paymentMethod,
+    required String cashierName,
+    int? receivedAmount,
+  }) {
+    if (_cart.isEmpty) {
+      return null;
+    }
 
     for (final product in _products) {
       final quantity = _cart[product.id] ?? 0;
 
-      if (quantity > 0) {
-        product.stock -= quantity;
+      if (quantity > product.stock) {
+        return null;
       }
     }
 
-    _completedSales++;
-    _totalSalesAmount += saleAmount;
+    final total = cartTotal;
+
+    if (paymentMethod == PaymentMethod.cash &&
+        (receivedAmount == null || receivedAmount < total)) {
+      return null;
+    }
+
+    final saleId = _nextSaleId++;
+
+    final now = DateTime.now();
+
+    final receiptNumber = _createReceiptNumber(saleId, now);
+
+    final items = <SaleItem>[];
+
+    for (final product in _products) {
+      final quantity = _cart[product.id] ?? 0;
+
+      if (quantity <= 0) {
+        continue;
+      }
+
+      items.add(
+        SaleItem(
+          productId: product.id,
+          productName: product.name,
+          unitPrice: product.price,
+          quantity: quantity,
+        ),
+      );
+
+      final beforeStock = product.stock;
+
+      product.stock -= quantity;
+
+      _stockMovements.add(
+        StockMovement(
+          id: _nextStockMovementId++,
+          productId: product.id,
+          productName: product.name,
+          type: StockMovementType.sale,
+          quantity: quantity,
+          beforeStock: beforeStock,
+          afterStock: product.stock,
+          createdAt: now,
+          referenceId: receiptNumber,
+        ),
+      );
+    }
+
+    final changeAmount = paymentMethod == PaymentMethod.cash
+        ? receivedAmount! - total
+        : null;
+
+    final sale = Sale(
+      id: saleId,
+      receiptNumber: receiptNumber,
+      items: items,
+      totalAmount: total,
+      paymentMethod: paymentMethod,
+      cashierName: cashierName,
+      soldAt: now,
+      receivedAmount: paymentMethod == PaymentMethod.cash
+          ? receivedAmount
+          : null,
+      changeAmount: changeAmount,
+    );
+
+    _sales.add(sale);
 
     _cart.clear();
+
+    notifyListeners();
+
+    return sale;
+  }
+
+  bool refundSale(int saleId) {
+    final saleIndex = _sales.indexWhere((sale) => sale.id == saleId);
+
+    if (saleIndex == -1) {
+      return false;
+    }
+
+    final sale = _sales[saleIndex];
+
+    if (sale.status == SaleStatus.refunded) {
+      return false;
+    }
+
+    for (final item in sale.items) {
+      final exists = _products.any((product) => product.id == item.productId);
+
+      if (!exists) {
+        return false;
+      }
+    }
+
+    final now = DateTime.now();
+
+    for (final item in sale.items) {
+      final productIndex = _products.indexWhere(
+        (product) => product.id == item.productId,
+      );
+
+      final product = _products[productIndex];
+
+      final beforeStock = product.stock;
+
+      product.stock += item.quantity;
+
+      _stockMovements.add(
+        StockMovement(
+          id: _nextStockMovementId++,
+          productId: product.id,
+          productName: product.name,
+          type: StockMovementType.refund,
+          quantity: item.quantity,
+          beforeStock: beforeStock,
+          afterStock: product.stock,
+          createdAt: now,
+          referenceId: sale.receiptNumber,
+        ),
+      );
+    }
+
+    sale.status = SaleStatus.refunded;
+
+    sale.refundedAt = now;
 
     notifyListeners();
 
@@ -144,6 +301,14 @@ class PosProvider extends ChangeNotifier {
       return false;
     }
 
+    final usedInSale = _sales.any(
+      (sale) => sale.items.any((item) => item.productId == productId),
+    );
+
+    if (usedInSale) {
+      return false;
+    }
+
     _products.removeWhere((product) => product.id == productId);
 
     notifyListeners();
@@ -162,8 +327,40 @@ class PosProvider extends ChangeNotifier {
       return;
     }
 
-    _products[index].stock += quantity;
+    final product = _products[index];
+
+    final beforeStock = product.stock;
+
+    product.stock += quantity;
+
+    _stockMovements.add(
+      StockMovement(
+        id: _nextStockMovementId++,
+        productId: product.id,
+        productName: product.name,
+        type: StockMovementType.restock,
+        quantity: quantity,
+        beforeStock: beforeStock,
+        afterStock: product.stock,
+        createdAt: DateTime.now(),
+      ),
+    );
 
     notifyListeners();
+  }
+
+  String _createReceiptNumber(int saleId, DateTime dateTime) {
+    String two(int value) {
+      return value.toString().padLeft(2, '0');
+    }
+
+    final date =
+        '${dateTime.year}'
+        '${two(dateTime.month)}'
+        '${two(dateTime.day)}';
+
+    final number = saleId.toString().padLeft(4, '0');
+
+    return 'R$date-$number';
   }
 }

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../inventory/stock_history_page.dart';
+import '../sales/refund_page.dart';
+import '../sales/sales_history_page.dart';
 import 'product_manage_page.dart';
 import 'stock_in_page.dart';
 
@@ -35,6 +38,7 @@ class ManagementPage extends StatelessWidget {
               );
             },
           ),
+
           ListTile(
             leading: const Icon(Icons.input_outlined),
             title: const Text('입고 관리'),
@@ -47,20 +51,50 @@ class ManagementPage extends StatelessWidget {
               );
             },
           ),
-          const ListTile(
-            leading: Icon(Icons.receipt_long_outlined),
-            title: Text('판매 내역'),
-            subtitle: Text('다음 단계에서 구현'),
+
+          ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('판매 내역'),
+            subtitle: const Text('판매 및 영수증 기록을 확인합니다.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SalesHistoryPage()),
+              );
+            },
           ),
-          const ListTile(
-            leading: Icon(Icons.undo),
-            title: Text('환불 관리'),
-            subtitle: Text('다음 단계에서 구현'),
+
+          ListTile(
+            leading: const Icon(Icons.undo_outlined),
+            title: const Text('환불 관리'),
+            subtitle: const Text('완료된 판매를 환불합니다.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RefundPage()),
+              );
+            },
           ),
+
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('재고 이력'),
+            subtitle: const Text('판매 / 입고 / 환불 기록을 확인합니다.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const StockHistoryPage()),
+              );
+            },
+          ),
+
           const ListTile(
             leading: Icon(Icons.manage_accounts_outlined),
             title: Text('직원 관리'),
-            subtitle: Text('Spring Boot 인증 단계에서 구현'),
+            subtitle: Text('Spring Boot 인증 단계에서 구현 예정'),
           ),
         ],
       ),
