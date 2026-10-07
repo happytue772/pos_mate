@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:pos_mate/features/navigation/main_navigation_page.dart';
+import 'package:provider/provider.dart';
+
+import '../../providers/auth_provider.dart';
+import '../navigation/main_navigation_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -32,11 +35,12 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final bool isAdmin = id == 'admin' && password == 'admin1234';
+    final success = context.read<AuthProvider>().login(
+      username: id,
+      password: password,
+    );
 
-    final bool isStaff = id == 'staff' && password == 'staff1234';
-
-    if (!isAdmin && !isStaff) {
+    if (!success) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('아이디 또는 비밀번호가 올바르지 않습니다.')));

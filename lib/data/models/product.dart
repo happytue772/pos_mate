@@ -24,4 +24,28 @@ class Product {
   final DateTime? expirationDate;
 
   bool get isLowStock => stock <= minimumStock;
+
+  Product copyWith({
+    int? id,
+    String? barcode,
+    String? name,
+    String? category,
+    int? price,
+    int? stock,
+    int? minimumStock,
+    bool? adultProduct,
+    DateTime? expirationDate,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      barcode: barcode ?? this.barcode,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      price: price ?? this.price,
+      stock: stock ?? this.stock,
+      minimumStock: minimumStock ?? this.minimumStock,
+      adultProduct: adultProduct ?? this.adultProduct,
+      expirationDate: expirationDate ?? this.expirationDate,
+    );
+  }
 }

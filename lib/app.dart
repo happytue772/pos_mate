@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'features/auth/login_page.dart';
+import 'providers/auth_provider.dart';
 import 'providers/pos_provider.dart';
 
 class PosMateApp extends StatelessWidget {
@@ -9,8 +10,11 @@ class PosMateApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => PosProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => PosProvider()),
+      ],
       child: MaterialApp(
         title: 'POS Mate',
         debugShowCheckedModeBanner: false,

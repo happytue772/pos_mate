@@ -8,6 +8,8 @@ class PosProvider extends ChangeNotifier {
 
   final Map<int, int> _cart = {};
 
+  int _nextProductId = 6;
+
   int _completedSales = 0;
   int _totalSalesAmount = 0;
 
@@ -90,5 +92,78 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
 
     return true;
+  }
+
+  bool barcodeExists(String barcode, {int? exceptProductId}) {
+    return _products.any(
+      (product) => product.barcode == barcode && product.id != exceptProductId,
+    );
+  }
+
+  void addProduct({
+    required String barcode,
+    required String name,
+    required String category,
+    required int price,
+    required int stock,
+    required int minimumStock,
+    required bool adultProduct,
+  }) {
+    final product = Product(
+      id: _nextProductId++,
+      barcode: barcode,
+      name: name,
+      category: category,
+      price: price,
+      stock: stock,
+      minimumStock: minimumStock,
+      adultProduct: adultProduct,
+    );
+
+    _products.add(product);
+
+    notifyListeners();
+  }
+
+  void updateProduct(Product updatedProduct) {
+    final index = _products.indexWhere(
+      (product) => product.id == updatedProduct.id,
+    );
+
+    if (index == -1) {
+      return;
+    }
+
+    _products[index] = updatedProduct;
+
+    notifyListeners();
+  }
+
+  bool deleteProduct(int productId) {
+    if (_cart.containsKey(productId)) {
+      return false;
+    }
+
+    _products.removeWhere((product) => product.id == productId);
+
+    notifyListeners();
+
+    return true;
+  }
+
+  void restockProduct(int productId, int quantity) {
+    if (quantity <= 0) {
+      return;
+    }
+
+    final index = _products.indexWhere((product) => product.id == productId);
+
+    if (index == -1) {
+      return;
+    }
+
+    _products[index].stock += quantity;
+
+    notifyListeners();
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../providers/pos_provider.dart';
+import '../auth/login_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -9,6 +11,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pos = context.watch<PosProvider>();
+    final auth = context.watch<AuthProvider>();
 
     final lowStockCount = pos.products
         .where((product) => product.isLowStock)
@@ -20,7 +23,27 @@ class HomePage extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('POS Mate')),
+      appBar: AppBar(
+        title: const Text('POS Mate'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Center(child: Text(auth.currentUser?.roleLabel ?? '')),
+          ),
+          IconButton(
+            onPressed: () {
+              context.read<AuthProvider>().logout();
+
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
+            },
+            icon: const Icon(Icons.logout),
+            tooltip: '로그아웃',
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
