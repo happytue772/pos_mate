@@ -830,19 +830,17 @@ class _CartBottomArea extends StatefulWidget {
 
 class _CartBottomAreaState extends State<_CartBottomArea>
     with SingleTickerProviderStateMixin {
-  bool _expanded = true;
+  bool _expanded = false;
   double _dragDistance = 0;
 
   @override
   void didUpdateWidget(covariant _CartBottomArea oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.itemCount == 0 && widget.itemCount > 0) {
-      _expanded = true;
-    }
-
-    if (widget.itemCount == 0) {
-      _expanded = false;
+    if (widget.itemCount == 0 && _expanded) {
+      setState(() {
+        _expanded = false;
+      });
     }
   }
 
@@ -868,14 +866,18 @@ class _CartBottomAreaState extends State<_CartBottomArea>
 
     final velocity = details.primaryVelocity ?? 0;
 
-    if (_dragDistance > 28 || velocity > 250) {
-      setState(() {
-        _expanded = false;
-      });
-    } else if (_dragDistance < -28 || velocity < -250) {
-      setState(() {
-        _expanded = true;
-      });
+    if (_dragDistance > 24 || velocity > 220) {
+      if (_expanded) {
+        setState(() {
+          _expanded = false;
+        });
+      }
+    } else if (_dragDistance < -24 || velocity < -220) {
+      if (!_expanded) {
+        setState(() {
+          _expanded = true;
+        });
+      }
     }
 
     _dragDistance = 0;
@@ -885,205 +887,181 @@ class _CartBottomAreaState extends State<_CartBottomArea>
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: PosPalette.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x16000000),
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _toggleExpanded,
-              onVerticalDragUpdate: _handleDragUpdate,
-              onVerticalDragEnd: _handleDragEnd,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 7, bottom: 3),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 42,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onVerticalDragUpdate: _handleDragUpdate,
+        onVerticalDragEnd: _handleDragEnd,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: PosPalette.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x16000000),
+                blurRadius: 16,
+                offset: Offset(0, -3),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleExpanded,
+                child: SizedBox(
+                  height: 18,
+                  width: double.infinity,
+                  child: Center(
+                    child: Container(
+                      width: 38,
                       height: 4,
                       decoration: BoxDecoration(
                         color: PosPalette.textTertiary.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Icon(
-                      _expanded
-                          ? Icons.keyboard_arrow_down_rounded
-                          : Icons.keyboard_arrow_up_rounded,
-                      size: 19,
-                      color: PosPalette.textTertiary,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-            if (widget.enabled)
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.bottomCenter,
+                child: widget.enabled && _expanded
+                    ? Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 8, 6),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.shopping_cart_outlined,
+                                  size: 19,
+                                  color: PosPalette.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    '담은 상품',
+                                    style: TextStyle(
+                                      color: PosPalette.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${widget.itemCount}개',
+                                  style: const TextStyle(
+                                    color: PosPalette.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: '주문 보류',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: widget.onHold,
+                                  icon: const Icon(
+                                    Icons.pause_circle_outline,
+                                    size: 20,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: '장바구니 비우기',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: widget.onClear,
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            height: 88,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              scrollDirection: Axis.horizontal,
+                              itemCount: widget.items.length,
+                              separatorBuilder: (context, index) {
+                                return const SizedBox(width: 8);
+                              },
+                              itemBuilder: (context, index) {
+                                final item = widget.items[index];
+
+                                return _CartItemCard(
+                                  item: item,
+                                  money: widget.money,
+                                  onAdd: () {
+                                    widget.onAdd(item.product);
+                                  },
+                                  onRemove: () {
+                                    widget.onRemove(item.product);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 10, 6),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.shopping_cart_outlined,
-                      size: 20,
-                      color: PosPalette.primary,
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
-                      child: GestureDetector(
-                        onTap: _toggleExpanded,
-                        child: Text(
-                          _expanded ? '담은 상품' : '담은 상품 ${widget.itemCount}개',
-                          style: const TextStyle(
-                            color: PosPalette.textPrimary,
+                      flex: 2,
+                      child: _BottomInfoBox(
+                        label: '수량',
+                        value: '${widget.itemCount}개',
+                        compact: true,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      flex: 3,
+                      child: _BottomInfoBox(
+                        label: '결제금액',
+                        value: widget.total,
+                        emphasized: true,
+                        compact: true,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    SizedBox(
+                      width: 82,
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: widget.enabled ? widget.onPayment : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: PosPalette.primary,
+                          disabledBackgroundColor: PosPalette.background,
+                          disabledForegroundColor: PosPalette.textTertiary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Text(
+                          '결제',
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ),
-                    if (_expanded)
-                      Text(
-                        '${widget.itemCount}개',
-                        style: const TextStyle(
-                          color: PosPalette.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    const SizedBox(width: 2),
-                    IconButton(
-                      tooltip: '주문 보류',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: widget.onHold,
-                      icon: const Icon(Icons.pause_circle_outline),
-                    ),
-                    IconButton(
-                      tooltip: '장바구니 비우기',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: widget.onClear,
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ],
-                ),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 2, 16, 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.shopping_cart_outlined,
-                      size: 19,
-                      color: PosPalette.textTertiary,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '상품을 담으면 여기에 표시돼요.',
-                      style: TextStyle(
-                        color: PosPalette.textTertiary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ],
                 ),
               ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: widget.enabled && _expanded
-                  ? Column(
-                      children: [
-                        SizedBox(
-                          height: 92,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: widget.items.length,
-                            separatorBuilder: (context, index) {
-                              return const SizedBox(width: 8);
-                            },
-                            itemBuilder: (context, index) {
-                              final item = widget.items[index];
-
-                              return _CartItemCard(
-                                item: item,
-                                money: widget.money,
-                                onAdd: () {
-                                  widget.onAdd(item.product);
-                                },
-                                onRemove: () {
-                                  widget.onRemove(item.product);
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _BottomInfoBox(
-                      label: '수량',
-                      value: '${widget.itemCount}개',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _BottomInfoBox(
-                      label: '결제금액',
-                      value: widget.total,
-                      emphasized: true,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 88,
-                    height: 54,
-                    child: FilledButton(
-                      onPressed: widget.enabled ? widget.onPayment : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: PosPalette.primary,
-                        disabledBackgroundColor: PosPalette.background,
-                        disabledForegroundColor: PosPalette.textTertiary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        padding: EdgeInsets.zero,
-                      ),
-                      child: const Text(
-                        '결제',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1170,20 +1148,22 @@ class _BottomInfoBox extends StatelessWidget {
     required this.label,
     required this.value,
     this.emphasized = false,
+    this.compact = false,
   });
 
   final String label;
   final String value;
   final bool emphasized;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: compact ? 48 : 54,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
       decoration: BoxDecoration(
         color: PosPalette.background,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(compact ? 16 : 17),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1197,7 +1177,7 @@ class _BottomInfoBox extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             value,
             maxLines: 1,
