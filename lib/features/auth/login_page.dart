@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/pos_palette.dart';
 import '../../providers/auth_provider.dart';
 import '../navigation/main_navigation_page.dart';
+import 'staff_register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,50 +14,62 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _idController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-  final TextEditingController _passwordController = TextEditingController();
+  bool _obscure = true;
+  bool _submitting = false;
 
   @override
   void dispose() {
-    _idController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
-
     super.dispose();
   }
 
-  void _login() {
-    final id = _idController.text.trim();
-    final password = _passwordController.text;
+  Future<void> _login() async {
+    final auth = context.read<AuthProvider>();
 
-    if (id.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('아이디와 비밀번호를 입력해주세요.')));
-
+    if (_submitting) {
       return;
     }
 
-    final success = context.read<AuthProvider>().login(
-      username: id,
-      password: password,
+    setState(() {
+      _submitting = true;
+    });
+
+    final success = await auth.login(
+      _usernameController.text,
+      _passwordController.text,
     );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _submitting = false;
+    });
 
     if (!success) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('아이디 또는 비밀번호가 올바르지 않습니다.')));
-
+      ).showSnackBar(SnackBar(content: Text(auth.lastError ?? '로그인에 실패했습니다.')));
       return;
     }
 
-    Navigator.of(context).pushReplacement(
+    Navigator.pushReplacement(
+      context,
       MaterialPageRoute(builder: (_) => const MainNavigationPage()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return Scaffold(
+      backgroundColor: PosPalette.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -63,52 +77,158 @@ class _LoginPageState extends State<LoginPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.point_of_sale, size: 72),
-                  const SizedBox(height: 20),
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: PosPalette.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.point_of_sale,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
                   const Text(
                     'POS Mate',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: PosPalette.textPrimary,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 7),
                   const Text(
-                    '판매와 재고를 한 곳에서 관리하세요.',
-                    textAlign: TextAlign.center,
+                    '관리자 또는 직원 계정으로 로그인하세요.',
+                    style: TextStyle(
+                      color: PosPalette.textSecondary,
+                      height: 1.5,
+                    ),
                   ),
-                  const SizedBox(height: 40),
-                  TextField(
-                    controller: _idController,
-                    decoration: const InputDecoration(
-                      labelText: '아이디',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
+                  const SizedBox(height: 28),
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: PosPalette.surface,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _usernameController,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: '아이디',
+                            hintText: 'admin 또는 staff1~staff99',
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: _obscure,
+                          onSubmitted: (_) {
+                            _login();
+                          },
+                          decoration: InputDecoration(
+                            labelText: '비밀번호',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscure = !_obscure;
+                                });
+                              },
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: auth.isLoading || _submitting
+                                ? null
+                                : _login,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: PosPalette.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: _submitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    '로그인',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const StaffRegisterPage(),
+                                ),
+                              );
+                            },
+                            child: const Text('직원 회원가입'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: '비밀번호',
-                      prefixIcon: Icon(Icons.lock_outline),
-                      border: OutlineInputBorder(),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: PosPalette.softBlue,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _login,
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('로그인'),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.admin_panel_settings_outlined,
+                          color: PosPalette.primary,
+                          size: 20,
+                        ),
+                        SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            '관리자 계정은 admin / admin1234 한 개만 사용합니다. '
+                            '직원 아이디는 staff1 ~ staff99 형식으로만 가입할 수 있습니다.',
+                            style: TextStyle(
+                              color: PosPalette.textSecondary,
+                              fontSize: 12,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'DEMO 관리자: admin / admin1234\n'
-                    'DEMO 직원: staff / staff1234',
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

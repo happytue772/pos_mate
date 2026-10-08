@@ -163,12 +163,27 @@ class _PosPageState extends State<PosPage> {
     final allProducts = pos.products;
     final products = _filteredProducts(allProducts);
 
+    final favoriteProducts = pos.favoriteProducts;
+
     final subCategories = _subCategories(allProducts);
 
     if (_selectedSubCategory != null &&
         !subCategories.contains(_selectedSubCategory)) {
       _selectedSubCategory = null;
     }
+
+    final cartLines = allProducts
+        .where((product) => pos.quantityOf(product.id) > 0)
+        .map((product) {
+          final quantity = pos.quantityOf(product.id);
+
+          return _CartLineData(
+            product: product,
+            quantity: quantity,
+            lineTotal: pos.calculateProductTotal(product, quantity),
+          );
+        })
+        .toList();
 
     return Scaffold(
       backgroundColor: PosPalette.background,
@@ -334,6 +349,14 @@ class _PosPageState extends State<PosPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 14),
+                _QuickSaleSection(
+                  products: favoriteProducts,
+                  money: _money,
+                  onAdd: (product) {
+                    pos.addToCart(product);
+                  },
+                ),
               ],
             ),
           ),
@@ -352,7 +375,11 @@ class _PosPageState extends State<PosPage> {
                         product: product,
                         quantity: pos.quantityOf(product.id),
                         promotionLabel: pos.promotionLabelForProduct(product),
+                        isFavorite: pos.isFavoriteProduct(product.id),
                         money: _money,
+                        onToggleFavorite: () {
+                          pos.toggleFavoriteProduct(product.id);
+                        },
                         onAdd: () {
                           pos.addToCart(product);
                         },
@@ -365,10 +392,18 @@ class _PosPageState extends State<PosPage> {
           ),
         ],
       ),
-      bottomNavigationBar: _CartBottomBar(
+      bottomNavigationBar: _CartBottomArea(
+        items: cartLines,
         itemCount: pos.cartItemCount,
         total: _money(pos.cartTotal),
         enabled: pos.cart.isNotEmpty,
+        money: _money,
+        onAdd: (product) {
+          pos.addToCart(product);
+        },
+        onRemove: (product) {
+          pos.removeFromCart(product);
+        },
         onHold: () {
           _holdCart(context);
         },
@@ -422,12 +457,156 @@ class _ShiftStatusBanner extends StatelessWidget {
   }
 }
 
+class _QuickSaleSection extends StatelessWidget {
+  const _QuickSaleSection({
+    required this.products,
+    required this.money,
+    required this.onAdd,
+  });
+
+  final List<Product> products;
+  final String Function(int value) money;
+  final void Function(Product product) onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    if (products.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: PosPalette.surface,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.star_border_rounded, color: PosPalette.textTertiary),
+            SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                '상품 카드의 ☆를 눌러 빠른 판매에 등록할 수 있어요.',
+                style: TextStyle(color: PosPalette.textSecondary, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '빠른 판매',
+                style: TextStyle(
+                  color: PosPalette.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              '${products.length}개',
+              style: const TextStyle(
+                color: PosPalette.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        SizedBox(
+          height: 112,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: products.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 9),
+            itemBuilder: (context, index) {
+              final product = products[index];
+
+              final expired =
+                  product.expirationStatus == ExpirationStatus.expired;
+
+              final enabled = !expired && product.stock > 0;
+
+              return Material(
+                color: PosPalette.surface,
+                borderRadius: BorderRadius.circular(18),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: enabled
+                      ? () {
+                          onAdd(product);
+                        }
+                      : null,
+                  child: Container(
+                    width: 148,
+                    padding: const EdgeInsets.all(13),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 18,
+                              color: PosPalette.warning,
+                            ),
+                            const Spacer(),
+                            Text(
+                              '재고 ${product.stock}',
+                              style: TextStyle(
+                                color: product.isLowStock
+                                    ? PosPalette.danger
+                                    : PosPalette.textTertiary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          product.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: PosPalette.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          money(product.price),
+                          style: const TextStyle(
+                            color: PosPalette.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.product,
     required this.quantity,
     required this.promotionLabel,
+    required this.isFavorite,
     required this.money,
+    required this.onToggleFavorite,
     required this.onAdd,
     required this.onRemove,
   });
@@ -435,7 +614,9 @@ class _ProductCard extends StatelessWidget {
   final Product product;
   final int quantity;
   final String? promotionLabel;
+  final bool isFavorite;
   final String Function(int value) money;
+  final VoidCallback onToggleFavorite;
   final VoidCallback onAdd;
   final VoidCallback onRemove;
 
@@ -497,6 +678,17 @@ class _ProductCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              IconButton(
+                tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
+                visualDensity: VisualDensity.compact,
+                onPressed: onToggleFavorite,
+                icon: Icon(
+                  isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: isFavorite
+                      ? PosPalette.warning
+                      : PosPalette.textTertiary,
                 ),
               ),
               Text(
@@ -595,85 +787,470 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-class _CartBottomBar extends StatelessWidget {
-  const _CartBottomBar({
+class _CartLineData {
+  const _CartLineData({
+    required this.product,
+    required this.quantity,
+    required this.lineTotal,
+  });
+
+  final Product product;
+  final int quantity;
+  final int lineTotal;
+}
+
+class _CartBottomArea extends StatefulWidget {
+  const _CartBottomArea({
+    required this.items,
     required this.itemCount,
     required this.total,
     required this.enabled,
+    required this.money,
+    required this.onAdd,
+    required this.onRemove,
     required this.onHold,
     required this.onClear,
     required this.onPayment,
   });
 
+  final List<_CartLineData> items;
   final int itemCount;
   final String total;
   final bool enabled;
+  final String Function(int value) money;
+  final void Function(Product product) onAdd;
+  final void Function(Product product) onRemove;
   final VoidCallback onHold;
   final VoidCallback onClear;
   final VoidCallback onPayment;
+
+  @override
+  State<_CartBottomArea> createState() => _CartBottomAreaState();
+}
+
+class _CartBottomAreaState extends State<_CartBottomArea>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = true;
+  double _dragDistance = 0;
+
+  @override
+  void didUpdateWidget(covariant _CartBottomArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.itemCount == 0 && widget.itemCount > 0) {
+      _expanded = true;
+    }
+
+    if (widget.itemCount == 0) {
+      _expanded = false;
+    }
+  }
+
+  void _toggleExpanded() {
+    if (!widget.enabled) {
+      return;
+    }
+
+    setState(() {
+      _expanded = !_expanded;
+    });
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    _dragDistance += details.delta.dy;
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (!widget.enabled) {
+      _dragDistance = 0;
+      return;
+    }
+
+    final velocity = details.primaryVelocity ?? 0;
+
+    if (_dragDistance > 28 || velocity > 250) {
+      setState(() {
+        _expanded = false;
+      });
+    } else if (_dragDistance < -28 || velocity < -250) {
+      setState(() {
+        _expanded = true;
+      });
+    }
+
+    _dragDistance = 0;
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: const BoxDecoration(
           color: PosPalette.surface,
           boxShadow: [
             BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 18,
-              offset: Offset(0, -3),
+              color: Color(0x16000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              tooltip: '보류',
-              onPressed: enabled ? onHold : null,
-              icon: const Icon(Icons.pause_circle_outline),
-            ),
-            IconButton(
-              tooltip: '취소',
-              onPressed: enabled ? onClear : null,
-              icon: const Icon(Icons.delete_outline),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: FilledButton(
-                onPressed: enabled ? onPayment : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: PosPalette.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleExpanded,
+              onVerticalDragUpdate: _handleDragUpdate,
+              onVerticalDragEnd: _handleDragEnd,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 7, bottom: 3),
+                child: Column(
                   children: [
-                    Text(
-                      '$itemCount개',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      total,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: PosPalette.textTertiary.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                     ),
-                    const Text(
-                      '결제',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                    const SizedBox(height: 4),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.keyboard_arrow_up_rounded,
+                      size: 19,
+                      color: PosPalette.textTertiary,
                     ),
                   ],
                 ),
               ),
             ),
+            if (widget.enabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 10, 6),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 20,
+                      color: PosPalette.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _toggleExpanded,
+                        child: Text(
+                          _expanded ? '담은 상품' : '담은 상품 ${widget.itemCount}개',
+                          style: const TextStyle(
+                            color: PosPalette.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_expanded)
+                      Text(
+                        '${widget.itemCount}개',
+                        style: const TextStyle(
+                          color: PosPalette.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      tooltip: '주문 보류',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.onHold,
+                      icon: const Icon(Icons.pause_circle_outline),
+                    ),
+                    IconButton(
+                      tooltip: '장바구니 비우기',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.onClear,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 2, 16, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 19,
+                      color: PosPalette.textTertiary,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '상품을 담으면 여기에 표시돼요.',
+                      style: TextStyle(
+                        color: PosPalette.textTertiary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: widget.enabled && _expanded
+                  ? Column(
+                      children: [
+                        SizedBox(
+                          height: 92,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: widget.items.length,
+                            separatorBuilder: (context, index) {
+                              return const SizedBox(width: 8);
+                            },
+                            itemBuilder: (context, index) {
+                              final item = widget.items[index];
+
+                              return _CartItemCard(
+                                item: item,
+                                money: widget.money,
+                                onAdd: () {
+                                  widget.onAdd(item.product);
+                                },
+                                onRemove: () {
+                                  widget.onRemove(item.product);
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: _BottomInfoBox(
+                      label: '수량',
+                      value: '${widget.itemCount}개',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 3,
+                    child: _BottomInfoBox(
+                      label: '결제금액',
+                      value: widget.total,
+                      emphasized: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 88,
+                    height: 54,
+                    child: FilledButton(
+                      onPressed: widget.enabled ? widget.onPayment : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: PosPalette.primary,
+                        disabledBackgroundColor: PosPalette.background,
+                        disabledForegroundColor: PosPalette.textTertiary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const Text(
+                        '결제',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartItemCard extends StatelessWidget {
+  const _CartItemCard({
+    required this.item,
+    required this.money,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final _CartLineData item;
+  final String Function(int value) money;
+  final VoidCallback onAdd;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final canAdd =
+        item.quantity < item.product.stock &&
+        item.product.expirationStatus != ExpirationStatus.expired;
+
+    return Container(
+      width: 190,
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: PosPalette.background,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  item.product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: PosPalette.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${item.quantity}개 · ${money(item.lineTotal)}',
+                  style: const TextStyle(
+                    color: PosPalette.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _MiniCartButton(
+                icon: Icons.add,
+                enabled: canAdd,
+                filled: true,
+                onTap: onAdd,
+              ),
+              const SizedBox(height: 5),
+              _MiniCartButton(icon: Icons.remove, onTap: onRemove),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomInfoBox extends StatelessWidget {
+  const _BottomInfoBox({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: PosPalette.background,
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: PosPalette.textTertiary,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: emphasized ? PosPalette.primary : PosPalette.textPrimary,
+              fontSize: emphasized ? 14 : 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniCartButton extends StatelessWidget {
+  const _MiniCartButton({
+    required this.icon,
+    required this.onTap,
+    this.enabled = true,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool enabled;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: !enabled
+          ? PosPalette.surface
+          : filled
+          ? PosPalette.primary
+          : PosPalette.surface,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: enabled ? onTap : null,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(
+            icon,
+            size: 16,
+            color: !enabled
+                ? PosPalette.textTertiary
+                : filled
+                ? Colors.white
+                : PosPalette.textPrimary,
+          ),
         ),
       ),
     );

@@ -6,11 +6,13 @@ import '../models/cash_movement.dart';
 import '../models/cashier_shift.dart';
 import '../models/held_cart.dart';
 import '../models/product.dart';
+import '../models/price_change_history.dart';
 import '../models/promotion.dart';
 import '../models/refund_transaction.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../models/stock_movement.dart';
+import '../models/staff_account.dart';
 
 class LocalDatabase {
   LocalDatabase._();
@@ -34,18 +36,21 @@ class LocalDatabase {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await _createTables(db);
         await _ensureShiftSummaryColumns(db);
+        await _ensureSaleVoidColumns(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         await _createTables(db);
         await _ensureShiftSummaryColumns(db);
+        await _ensureSaleVoidColumns(db);
       },
       onOpen: (db) async {
         await _createTables(db);
         await _ensureShiftSummaryColumns(db);
+        await _ensureSaleVoidColumns(db);
       },
     );
   }
@@ -79,7 +84,10 @@ class LocalDatabase {
         received_amount INTEGER,
         change_amount INTEGER,
         status TEXT NOT NULL,
-        refunded_at TEXT
+        refunded_at TEXT,
+        voided_at TEXT,
+        voided_by TEXT,
+        void_reason TEXT
       )
       ''');
 
@@ -221,6 +229,38 @@ class LocalDatabase {
       ''');
 
     await db.execute('''
+      CREATE TABLE IF NOT EXISTS product_favorites (
+        product_id INTEGER PRIMARY KEY,
+        created_at TEXT NOT NULL
+      )
+      ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS price_change_history (
+        id INTEGER PRIMARY KEY,
+        product_id INTEGER NOT NULL,
+        product_name TEXT NOT NULL,
+        before_price INTEGER NOT NULL,
+        after_price INTEGER NOT NULL,
+        before_cost_price INTEGER NOT NULL,
+        after_cost_price INTEGER NOT NULL,
+        changed_by TEXT NOT NULL,
+        changed_at TEXT NOT NULL
+      )
+      ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS staff_accounts (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        password TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      )
+      ''');
+
+    await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id
       ON sale_items(sale_id)
       ''');
@@ -264,6 +304,16 @@ class LocalDatabase {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_action
       ON audit_logs(action)
       ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_price_change_product
+      ON price_change_history(product_id, changed_at)
+      ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_staff_accounts_username
+      ON staff_accounts(username)
+      ''');
   }
 
   Future<void> _ensureShiftSummaryColumns(Database db) async {
@@ -290,6 +340,26 @@ class LocalDatabase {
     await addColumn('summary_cash_in_amount');
     await addColumn('summary_cash_out_amount');
     await addColumn('summary_expected_cash');
+  }
+
+  Future<void> _ensureSaleVoidColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(sales)');
+
+    final columns = info.map((row) => row['name'] as String).toSet();
+
+    Future<void> addTextColumn(String column) async {
+      if (columns.contains(column)) {
+        return;
+      }
+
+      await db.execute('ALTER TABLE sales ADD COLUMN $column TEXT');
+
+      columns.add(column);
+    }
+
+    await addTextColumn('voided_at');
+    await addTextColumn('voided_by');
+    await addTextColumn('void_reason');
   }
 
   Future<List<Product>> getProducts() async {
@@ -412,6 +482,11 @@ class LocalDatabase {
           refundedAt: row['refunded_at'] == null
               ? null
               : DateTime.parse(row['refunded_at'] as String),
+          voidedAt: row['voided_at'] == null
+              ? null
+              : DateTime.parse(row['voided_at'] as String),
+          voidedBy: row['voided_by'] as String?,
+          voidReason: row['void_reason'] as String?,
         ),
       );
     }
@@ -435,6 +510,9 @@ class LocalDatabase {
         'change_amount': sale.changeAmount,
         'status': sale.status.name,
         'refunded_at': sale.refundedAt?.toIso8601String(),
+        'voided_at': sale.voidedAt?.toIso8601String(),
+        'voided_by': sale.voidedBy,
+        'void_reason': sale.voidReason,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       await txn.delete(
@@ -814,6 +892,104 @@ class LocalDatabase {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  Future<Set<int>> getFavoriteProductIds() async {
+    final db = await database;
+
+    final rows = await db.query('product_favorites', orderBy: 'created_at ASC');
+
+    return rows.map((row) => row['product_id'] as int).toSet();
+  }
+
+  Future<void> setProductFavorite({
+    required int productId,
+    required bool favorite,
+  }) async {
+    final db = await database;
+
+    if (favorite) {
+      await db.insert('product_favorites', {
+        'product_id': productId,
+        'created_at': DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      return;
+    }
+
+    await db.delete(
+      'product_favorites',
+      where: 'product_id = ?',
+      whereArgs: [productId],
+    );
+  }
+
+  Future<List<PriceChangeHistory>> getPriceChangeHistory() async {
+    final db = await database;
+
+    final rows = await db.query(
+      'price_change_history',
+      orderBy: 'changed_at DESC, id DESC',
+    );
+
+    return rows.map((row) {
+      return PriceChangeHistory(
+        id: row['id'] as int,
+        productId: row['product_id'] as int,
+        productName: row['product_name'] as String,
+        beforePrice: row['before_price'] as int,
+        afterPrice: row['after_price'] as int,
+        beforeCostPrice: row['before_cost_price'] as int,
+        afterCostPrice: row['after_cost_price'] as int,
+        changedBy: row['changed_by'] as String,
+        changedAt: DateTime.parse(row['changed_at'] as String),
+      );
+    }).toList();
+  }
+
+  Future<void> insertPriceChangeHistory(PriceChangeHistory history) async {
+    final db = await database;
+
+    await db.insert('price_change_history', {
+      'id': history.id,
+      'product_id': history.productId,
+      'product_name': history.productName,
+      'before_price': history.beforePrice,
+      'after_price': history.afterPrice,
+      'before_cost_price': history.beforeCostPrice,
+      'after_cost_price': history.afterCostPrice,
+      'changed_by': history.changedBy,
+      'changed_at': history.changedAt.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<StaffAccount>> getStaffAccounts() async {
+    final db = await database;
+
+    final rows = await db.query('staff_accounts', orderBy: 'id ASC');
+
+    return rows.map((row) {
+      return StaffAccount(
+        id: row['id'] as int,
+        username: row['username'] as String,
+        name: row['name'] as String,
+        password: row['password'] as String,
+        enabled: (row['enabled'] as int) == 1,
+        createdAt: DateTime.parse(row['created_at'] as String),
+      );
+    }).toList();
+  }
+
+  Future<void> upsertStaffAccount(StaffAccount account) async {
+    final db = await database;
+
+    await db.insert('staff_accounts', {
+      'id': account.id,
+      'username': account.username,
+      'name': account.name,
+      'password': account.password,
+      'enabled': account.enabled ? 1 : 0,
+      'created_at': account.createdAt.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<int> insertAuditLog(AuditLog log) async {
     final db = await database;
 
@@ -856,6 +1032,9 @@ class LocalDatabase {
     final db = await database;
 
     await db.transaction((txn) async {
+      await txn.delete('product_favorites');
+      await txn.delete('price_change_history');
+      await txn.delete('staff_accounts');
       await txn.delete('audit_logs');
       await txn.delete('held_cart_items');
       await txn.delete('held_carts');

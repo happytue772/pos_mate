@@ -145,7 +145,10 @@ class _SalesAnalyticsPageState extends State<SalesAnalyticsPage> {
     final range = _currentRange();
 
     final sales = pos.sales
-        .where((sale) => _contains(sale.soldAt, range))
+        .where(
+          (sale) =>
+              _contains(sale.soldAt, range) && sale.status != SaleStatus.voided,
+        )
         .toList();
 
     final grossSales = sales.fold<int>(
@@ -163,7 +166,11 @@ class _SalesAnalyticsPageState extends State<SalesAnalyticsPage> {
     final transactionCount = sales.where((sale) => sale.netAmount > 0).length;
 
     final refundSaleCount = sales
-        .where((sale) => sale.status != SaleStatus.completed)
+        .where(
+          (sale) =>
+              sale.status == SaleStatus.partiallyRefunded ||
+              sale.status == SaleStatus.refunded,
+        )
         .length;
 
     final averageOrder = transactionCount == 0

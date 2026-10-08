@@ -7,6 +7,7 @@ import '../data/demo/demo_products.dart';
 import '../data/models/audit_log.dart';
 import '../data/models/held_cart.dart';
 import '../data/models/product.dart';
+import '../data/models/price_change_history.dart';
 import '../data/models/promotion.dart';
 import '../data/models/refund_transaction.dart';
 import '../data/models/sale.dart';
@@ -26,6 +27,8 @@ class PosProvider extends ChangeNotifier {
   final List<HeldCart> _heldCarts = [];
   final List<StockMovement> _stockMovements = [];
   final List<Promotion> _promotions = [];
+  final Set<int> _favoriteProductIds = <int>{};
+  final List<PriceChangeHistory> _priceChangeHistory = [];
 
   int _nextProductId = 1;
   int _nextSaleId = 1;
@@ -33,6 +36,7 @@ class PosProvider extends ChangeNotifier {
   int _nextStockMovementId = 1;
   int _nextHeldCartId = 1;
   int _nextPromotionId = 1;
+  int _nextPriceChangeId = 1;
 
   bool _isLoading = true;
 
@@ -50,6 +54,8 @@ class PosProvider extends ChangeNotifier {
       _stockMovements.clear();
       _heldCarts.clear();
       _promotions.clear();
+      _favoriteProductIds.clear();
+      _priceChangeHistory.clear();
 
       final savedProducts = await _database.getProducts();
       final catalogProducts = createDemoProducts();
@@ -124,6 +130,10 @@ class PosProvider extends ChangeNotifier {
       _stockMovements.addAll(await _database.getStockMovements());
       _heldCarts.addAll(await _database.getHeldCarts());
 
+      _favoriteProductIds.addAll(await _database.getFavoriteProductIds());
+
+      _priceChangeHistory.addAll(await _database.getPriceChangeHistory());
+
       final savedPromotions = await _database.getPromotions();
 
       if (savedPromotions.isEmpty) {
@@ -195,6 +205,7 @@ class PosProvider extends ChangeNotifier {
     _nextStockMovementId = _nextId(_stockMovements.map((e) => e.id));
     _nextHeldCartId = _nextId(_heldCarts.map((e) => e.id));
     _nextPromotionId = _nextId(_promotions.map((e) => e.id));
+    _nextPriceChangeId = _nextId(_priceChangeHistory.map((e) => e.id));
   }
 
   int _nextId(Iterable<int> ids) {
@@ -242,12 +253,54 @@ class PosProvider extends ChangeNotifier {
 
   List<Promotion> get promotions => List.unmodifiable(_promotions);
 
+  List<PriceChangeHistory> get priceChangeHistory {
+    return List.unmodifiable(_priceChangeHistory.reversed);
+  }
+
+  bool isFavoriteProduct(int productId) {
+    return _favoriteProductIds.contains(productId);
+  }
+
+  List<Product> get favoriteProducts {
+    return _products
+        .where((product) => _favoriteProductIds.contains(product.id))
+        .toList(growable: false);
+  }
+
+  void toggleFavoriteProduct(int productId) {
+    final exists = _products.any((product) => product.id == productId);
+
+    if (!exists) {
+      return;
+    }
+
+    final favorite = !_favoriteProductIds.contains(productId);
+
+    if (favorite) {
+      _favoriteProductIds.add(productId);
+    } else {
+      _favoriteProductIds.remove(productId);
+    }
+
+    unawaited(
+      _database.setProductFavorite(productId: productId, favorite: favorite),
+    );
+
+    notifyListeners();
+  }
+
   int get completedSales {
     return _sales.where((sale) => sale.netAmount > 0).length;
   }
 
   int get refundedSales {
-    return _sales.where((sale) => sale.status != SaleStatus.completed).length;
+    return _sales
+        .where(
+          (sale) =>
+              sale.status == SaleStatus.partiallyRefunded ||
+              sale.status == SaleStatus.refunded,
+        )
+        .length;
   }
 
   int get totalSalesAmount {
@@ -713,7 +766,8 @@ class PosProvider extends ChangeNotifier {
 
     final sale = _sales[saleIndex];
 
-    if (sale.status == SaleStatus.refunded) {
+    if (sale.status == SaleStatus.refunded ||
+        sale.status == SaleStatus.voided) {
       return null;
     }
 
@@ -854,7 +908,8 @@ class PosProvider extends ChangeNotifier {
 
     final sale = _sales[saleIndex];
 
-    if (sale.status == SaleStatus.refunded) {
+    if (sale.status == SaleStatus.refunded ||
+        sale.status == SaleStatus.voided) {
       return false;
     }
 
@@ -878,6 +933,99 @@ class PosProvider extends ChangeNotifier {
           memo: memo,
         ) !=
         null;
+  }
+
+  bool canVoidSale({required Sale sale, required int activeShiftId}) {
+    return sale.shiftId == activeShiftId && sale.canVoid;
+  }
+
+  bool voidSale({
+    required int saleId,
+    required int activeShiftId,
+    required String reason,
+  }) {
+    final saleIndex = _sales.indexWhere((sale) => sale.id == saleId);
+
+    if (saleIndex == -1) {
+      return false;
+    }
+
+    final sale = _sales[saleIndex];
+
+    if (!canVoidSale(sale: sale, activeShiftId: activeShiftId)) {
+      return false;
+    }
+
+    final normalizedReason = reason.trim();
+
+    if (normalizedReason.isEmpty) {
+      return false;
+    }
+
+    final now = DateTime.now();
+
+    for (final item in sale.items) {
+      final productIndex = _products.indexWhere(
+        (product) => product.id == item.productId,
+      );
+
+      if (productIndex == -1) {
+        return false;
+      }
+    }
+
+    for (final item in sale.items) {
+      final productIndex = _products.indexWhere(
+        (product) => product.id == item.productId,
+      );
+
+      final product = _products[productIndex];
+
+      final beforeStock = product.stock;
+
+      product.stock += item.quantity;
+
+      final movement = StockMovement(
+        id: _nextStockMovementId++,
+        productId: product.id,
+        productName: product.name,
+        type: StockMovementType.adjustment,
+        quantity: item.quantity,
+        beforeStock: beforeStock,
+        afterStock: product.stock,
+        createdAt: now,
+        referenceId: sale.receiptNumber,
+        memo: '거래 취소 · $normalizedReason',
+      );
+
+      _stockMovements.add(movement);
+
+      unawaited(_database.upsertStockMovement(movement));
+
+      unawaited(_database.upsertProduct(product));
+    }
+
+    sale.status = SaleStatus.voided;
+    sale.voidedAt = now;
+    sale.voidedBy = _audit.currentUser?.name ?? 'SYSTEM';
+    sale.voidReason = normalizedReason;
+
+    unawaited(_database.upsertSale(sale));
+
+    _writeAudit(
+      action: AuditAction.saleVoid,
+      targetType: 'SALE',
+      targetId: sale.id.toString(),
+      targetName: sale.receiptNumber,
+      detail:
+          '거래 취소 · ${sale.totalAmount}원 · '
+          '사유 $normalizedReason · '
+          '처리자 ${sale.voidedBy}',
+    );
+
+    notifyListeners();
+
+    return true;
   }
 
   bool barcodeExists(String barcode, {int? exceptProductId}) {
@@ -936,6 +1084,38 @@ class PosProvider extends ChangeNotifier {
     }
 
     final before = _products[index];
+
+    final priceChanged =
+        before.price != product.price || before.costPrice != product.costPrice;
+
+    if (priceChanged) {
+      final history = PriceChangeHistory(
+        id: _nextPriceChangeId++,
+        productId: product.id,
+        productName: product.name,
+        beforePrice: before.price,
+        afterPrice: product.price,
+        beforeCostPrice: before.costPrice,
+        afterCostPrice: product.costPrice,
+        changedBy: _audit.currentUser?.name ?? 'SYSTEM',
+        changedAt: DateTime.now(),
+      );
+
+      _priceChangeHistory.add(history);
+
+      unawaited(_database.insertPriceChangeHistory(history));
+
+      _writeAudit(
+        action: AuditAction.priceChange,
+        targetType: 'PRODUCT',
+        targetId: product.id.toString(),
+        targetName: product.name,
+        detail:
+            '가격 변경 · 판매가 ${before.price}원 → ${product.price}원 · '
+            '원가 ${before.costPrice}원 → ${product.costPrice}원',
+      );
+    }
+
     _products[index] = product;
 
     unawaited(_database.upsertProduct(product));
@@ -976,6 +1156,11 @@ class PosProvider extends ChangeNotifier {
 
     _products.removeAt(index);
     _promotions.removeWhere((promotion) => promotion.productId == productId);
+    _favoriteProductIds.remove(productId);
+
+    unawaited(
+      _database.setProductFavorite(productId: productId, favorite: false),
+    );
 
     unawaited(_database.deleteProduct(productId));
     unawaited(_database.deletePromotionsForProduct(productId));

@@ -251,7 +251,11 @@ class ShiftProvider extends ChangeNotifier {
     );
 
     final refundCount = shiftSales
-        .where((sale) => sale.status != SaleStatus.completed)
+        .where(
+          (sale) =>
+              sale.status == SaleStatus.partiallyRefunded ||
+              sale.status == SaleStatus.refunded,
+        )
         .length;
 
     final completedSalesCount = shiftSales

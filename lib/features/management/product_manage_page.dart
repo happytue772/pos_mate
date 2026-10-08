@@ -34,7 +34,7 @@ class _ProductManagePageState extends State<ProductManagePage> {
     }).toList();
   }
 
-  Future<void> _delete(BuildContext context, Product product) async {
+  Future<void> _delete(Product product) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -301,7 +301,7 @@ class _ProductManagePageState extends State<ProductManagePage> {
                     );
                   },
                   onDelete: () {
-                    _delete(context, product);
+                    _delete(product);
                   },
                 ),
               ),

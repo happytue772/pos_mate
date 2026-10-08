@@ -2,6 +2,7 @@ enum AuditAction {
   productCreate,
   productUpdate,
   productDelete,
+  priceChange,
   promotionCreate,
   promotionUpdate,
   promotionDelete,
@@ -9,10 +10,13 @@ enum AuditAction {
   stockAdjust,
   stockDispose,
   refund,
+  saleVoid,
   cashDeposit,
   cashWithdrawal,
   shiftOpen,
   shiftClose,
+  staffRegister,
+  staffStatusChange,
 }
 
 extension AuditActionLabel on AuditAction {
@@ -24,6 +28,8 @@ extension AuditActionLabel on AuditAction {
         return '상품 수정';
       case AuditAction.productDelete:
         return '상품 삭제';
+      case AuditAction.priceChange:
+        return '가격 변경';
       case AuditAction.promotionCreate:
         return '행사 등록';
       case AuditAction.promotionUpdate:
@@ -38,6 +44,8 @@ extension AuditActionLabel on AuditAction {
         return '상품 폐기';
       case AuditAction.refund:
         return '환불 처리';
+      case AuditAction.saleVoid:
+        return '거래 취소';
       case AuditAction.cashDeposit:
         return '현금 입금';
       case AuditAction.cashWithdrawal:
@@ -46,6 +54,10 @@ extension AuditActionLabel on AuditAction {
         return '근무 시작';
       case AuditAction.shiftClose:
         return '근무 마감';
+      case AuditAction.staffRegister:
+        return '직원 가입';
+      case AuditAction.staffStatusChange:
+        return '직원 상태 변경';
     }
   }
 }

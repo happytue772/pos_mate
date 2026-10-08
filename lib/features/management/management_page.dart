@@ -11,10 +11,13 @@ import '../sales/refund_history_page.dart';
 import '../sales/refund_page.dart';
 import '../sales/sales_analytics_page.dart';
 import '../sales/sales_history_page.dart';
+import '../sales/void_sale_page.dart';
 import '../shift/settlement_history_page.dart';
 import 'audit_log_page.dart';
+import 'price_change_history_page.dart';
 import 'product_manage_page.dart';
 import 'promotion_manage_page.dart';
+import 'staff_manage_page.dart';
 import 'stock_in_page.dart';
 
 class ManagementPage extends StatelessWidget {
@@ -126,6 +129,21 @@ class ManagementPage extends StatelessWidget {
                 },
               ),
               _ManagementMenuItem(
+                icon: Icons.price_change_outlined,
+                iconBackground: PosPalette.softGreen,
+                iconColor: PosPalette.success,
+                title: '가격 변경 이력',
+                subtitle: '판매가·원가 변경 전후와 변경 직원',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PriceChangeHistoryPage(),
+                    ),
+                  );
+                },
+              ),
+              _ManagementMenuItem(
                 icon: Icons.local_offer_outlined,
                 iconBackground: PosPalette.softOrange,
                 iconColor: PosPalette.warning,
@@ -222,6 +240,19 @@ class ManagementPage extends StatelessWidget {
                 },
               ),
               _ManagementMenuItem(
+                icon: Icons.block_outlined,
+                iconBackground: PosPalette.softRed,
+                iconColor: PosPalette.danger,
+                title: '거래 취소',
+                subtitle: '현재 근무의 미환불 거래 취소 / 재고 복구',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const VoidSalePage()),
+                  );
+                },
+              ),
+              _ManagementMenuItem(
                 icon: Icons.manage_search,
                 iconBackground: PosPalette.softGreen,
                 iconColor: PosPalette.success,
@@ -295,18 +326,23 @@ class ManagementPage extends StatelessWidget {
 
           const _SectionTitle(
             title: '직원',
-            subtitle: '직원 계정과 권한은 서버 단계에서 확장해요.',
+            subtitle: 'staff1 ~ staff99 직원 계정을 관리해요.',
           ),
           const SizedBox(height: 10),
-          const _MenuCard(
+          _MenuCard(
             children: [
               _ManagementMenuItem(
                 icon: Icons.manage_accounts_outlined,
                 iconBackground: PosPalette.softGreen,
                 iconColor: PosPalette.success,
                 title: '직원 관리',
-                subtitle: 'Spring Boot 인증 단계에서 구현 예정',
-                enabled: false,
+                subtitle: '등록 직원 확인 / 계정 활성·비활성',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const StaffManagePage()),
+                  );
+                },
               ),
             ],
           ),
@@ -460,7 +496,6 @@ class _ManagementMenuItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.onTap,
-    this.enabled = true,
   });
 
   final IconData icon;
@@ -469,14 +504,13 @@ class _ManagementMenuItem extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: enabled ? onTap : null,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
@@ -485,14 +519,10 @@ class _ManagementMenuItem extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: enabled ? iconBackground : PosPalette.background,
+                  color: iconBackground,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  icon,
-                  color: enabled ? iconColor : PosPalette.textTertiary,
-                  size: 21,
-                ),
+                child: Icon(icon, color: iconColor, size: 21),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -501,10 +531,8 @@ class _ManagementMenuItem extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
-                        color: enabled
-                            ? PosPalette.textPrimary
-                            : PosPalette.textTertiary,
+                      style: const TextStyle(
+                        color: PosPalette.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -512,10 +540,8 @@ class _ManagementMenuItem extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: enabled
-                            ? PosPalette.textSecondary
-                            : PosPalette.textTertiary,
+                      style: const TextStyle(
+                        color: PosPalette.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -523,8 +549,8 @@ class _ManagementMenuItem extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(
-                enabled ? Icons.chevron_right : Icons.lock_outline,
+              const Icon(
+                Icons.chevron_right,
                 color: PosPalette.textTertiary,
                 size: 20,
               ),

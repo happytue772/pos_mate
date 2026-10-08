@@ -13,6 +13,8 @@ class AuditLogService {
 
   AppUser? _currentUser;
 
+  AppUser? get currentUser => _currentUser;
+
   void setCurrentUser(AppUser? user) {
     _currentUser = user;
   }

@@ -39,6 +39,8 @@ class _AuditLogPageState extends State<AuditLogPage> {
       case AuditAction.productUpdate:
       case AuditAction.productDelete:
         return Icons.inventory_2_outlined;
+      case AuditAction.priceChange:
+        return Icons.price_change_outlined;
       case AuditAction.promotionCreate:
       case AuditAction.promotionUpdate:
       case AuditAction.promotionDelete:
@@ -49,12 +51,17 @@ class _AuditLogPageState extends State<AuditLogPage> {
         return Icons.warehouse_outlined;
       case AuditAction.refund:
         return Icons.assignment_return_outlined;
+      case AuditAction.saleVoid:
+        return Icons.block_outlined;
       case AuditAction.cashDeposit:
       case AuditAction.cashWithdrawal:
         return Icons.account_balance_wallet_outlined;
       case AuditAction.shiftOpen:
       case AuditAction.shiftClose:
         return Icons.badge_outlined;
+      case AuditAction.staffRegister:
+      case AuditAction.staffStatusChange:
+        return Icons.manage_accounts_outlined;
     }
   }
 

@@ -1,5 +1,16 @@
 enum UserRole { admin, staff }
 
+extension UserRoleLabel on UserRole {
+  String get label {
+    switch (this) {
+      case UserRole.admin:
+        return '관리자';
+      case UserRole.staff:
+        return '직원';
+    }
+  }
+}
+
 class AppUser {
   const AppUser({
     required this.id,
@@ -15,12 +26,5 @@ class AppUser {
 
   bool get isAdmin => role == UserRole.admin;
 
-  String get roleLabel {
-    switch (role) {
-      case UserRole.admin:
-        return '관리자';
-      case UserRole.staff:
-        return '직원';
-    }
-  }
+  String get roleLabel => role.label;
 }
