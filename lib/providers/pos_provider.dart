@@ -52,13 +52,71 @@ class PosProvider extends ChangeNotifier {
       _promotions.clear();
 
       final savedProducts = await _database.getProducts();
+      final catalogProducts = createDemoProducts();
 
       if (savedProducts.isEmpty) {
-        final demoProducts = createDemoProducts();
-        _products.addAll(demoProducts);
-        await _database.insertProducts(demoProducts);
+        _products.addAll(catalogProducts);
+        await _database.insertProducts(catalogProducts);
       } else {
-        _products.addAll(savedProducts);
+        // 기존 판매/재고 이력은 유지한다.
+        // 과거 DEMO 상품은 새 카탈로그의 이름/바코드만 정리하고,
+        // 사용 중인 가격·원가·재고·최소재고는 그대로 보존한다.
+        final catalogById = {
+          for (final product in catalogProducts) product.id: product,
+        };
+
+        final normalizedProducts = <Product>[];
+
+        for (final saved in savedProducts) {
+          final catalog = catalogById[saved.id];
+
+          if (catalog != null &&
+              (saved.name.contains('데모') ||
+                  saved.barcode.startsWith('DEMO-'))) {
+            final normalized = Product(
+              id: saved.id,
+              barcode: catalog.barcode,
+              name: catalog.name,
+              category: catalog.category,
+              subCategory: catalog.subCategory,
+              price: saved.price,
+              costPrice: saved.costPrice,
+              stock: saved.stock,
+              minimumStock: saved.minimumStock,
+              adultProduct: catalog.adultProduct,
+              expirationDate: saved.expirationDate,
+            );
+
+            normalizedProducts.add(normalized);
+            await _database.upsertProduct(normalized);
+          } else {
+            normalizedProducts.add(saved);
+          }
+        }
+
+        _products.addAll(normalizedProducts);
+
+        final existingIds = normalizedProducts
+            .map((product) => product.id)
+            .toSet();
+
+        final existingBarcodes = normalizedProducts
+            .map((product) => product.barcode)
+            .toSet();
+
+        final missingCatalogProducts = catalogProducts
+            .where(
+              (product) =>
+                  !existingIds.contains(product.id) &&
+                  !existingBarcodes.contains(product.barcode),
+            )
+            .toList();
+
+        if (missingCatalogProducts.isNotEmpty) {
+          _products.addAll(missingCatalogProducts);
+
+          await _database.insertProducts(missingCatalogProducts);
+        }
       }
 
       _sales.addAll(await _database.getSales());
