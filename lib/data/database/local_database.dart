@@ -1,5 +1,7 @@
-import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+
+import 'database_platform_stub.dart'
+    if (dart.library.js_interop) 'database_platform_web.dart';
 
 import '../models/audit_log.dart';
 import '../models/cash_movement.dart';
@@ -31,8 +33,9 @@ class LocalDatabase {
   }
 
   Future<Database> _openDatabase() async {
-    final databasePath = await getDatabasesPath();
-    final path = join(databasePath, 'pos_mate.db');
+    configureDatabasePlatform();
+
+    final path = await resolvePosMateDatabasePath();
 
     return openDatabase(
       path,
