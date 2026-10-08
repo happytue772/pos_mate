@@ -6,6 +6,7 @@ class SaleItem {
     required this.productName,
     required this.unitPrice,
     required this.quantity,
+    this.unitCost = 0,
     this.promotionType,
     this.promotionPercent,
     this.promotionSpecialPrice,
@@ -13,14 +14,19 @@ class SaleItem {
   });
 
   final int productId;
+
   final String productName;
 
   final int unitPrice;
+
+  final int unitCost;
+
   final int quantity;
 
   final PromotionType? promotionType;
 
   final int? promotionPercent;
+
   final int? promotionSpecialPrice;
 
   int refundedQuantity;
@@ -45,9 +51,7 @@ class SaleItem {
       case PromotionType.twoPlusOne:
         final freeQuantity = quantity ~/ 3;
 
-        final paidQuantity = quantity - freeQuantity;
-
-        return unitPrice * paidQuantity;
+        return unitPrice * (quantity - freeQuantity);
 
       case PromotionType.percentDiscount:
         final percent = promotionPercent ?? 0;
@@ -63,29 +67,21 @@ class SaleItem {
     }
   }
 
-  int get originalSubtotal {
-    return unitPrice * quantity;
-  }
+  int get originalSubtotal => unitPrice * quantity;
 
-  int get subtotal {
-    return calculateAmountForQuantity(quantity);
-  }
+  int get subtotal => calculateAmountForQuantity(quantity);
 
-  int get discountAmount {
-    return originalSubtotal - subtotal;
-  }
+  int get discountAmount => originalSubtotal - subtotal;
 
-  int get remainingQuantity {
-    return quantity - refundedQuantity;
-  }
+  int get remainingQuantity => quantity - refundedQuantity;
 
-  int get netAmount {
-    return calculateAmountForQuantity(remainingQuantity);
-  }
+  int get netAmount => calculateAmountForQuantity(remainingQuantity);
 
-  int get refundedAmount {
-    return subtotal - netAmount;
-  }
+  int get refundedAmount => subtotal - netAmount;
+
+  int get netCostAmount => unitCost * remainingQuantity;
+
+  int get grossProfit => netAmount - netCostAmount;
 
   int refundAmountFor(int quantity) {
     if (quantity <= 0 || quantity > remainingQuantity) {

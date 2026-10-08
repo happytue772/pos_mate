@@ -17,24 +17,34 @@ extension ProductCategoryLabel on ProductCategory {
     switch (this) {
       case ProductCategory.beverage:
         return '음료';
+
       case ProductCategory.alcohol:
         return '주류';
+
       case ProductCategory.ramen:
         return '라면';
+
       case ProductCategory.bakery:
         return '빵';
+
       case ProductCategory.snack:
         return '과자 / 간식';
+
       case ProductCategory.dairy:
         return '유제품';
+
       case ProductCategory.readyMeal:
         return '즉석식품';
+
       case ProductCategory.frozen:
         return '냉동식품';
+
       case ProductCategory.household:
         return '생활용품';
+
       case ProductCategory.tobacco:
         return '담배';
+
       case ProductCategory.other:
         return '기타';
     }
@@ -53,18 +63,24 @@ class Product {
     required this.price,
     required this.stock,
     required this.minimumStock,
+    this.costPrice = 0,
     this.adultProduct = false,
     this.expirationDate,
   });
 
   final int id;
+
   final String barcode;
+
   final String name;
 
   final ProductCategory category;
+
   final String subCategory;
 
   final int price;
+
+  final int costPrice;
 
   int stock;
 
@@ -75,6 +91,16 @@ class Product {
   final DateTime? expirationDate;
 
   bool get isLowStock => stock <= minimumStock;
+
+  int get baseMargin => price - costPrice;
+
+  double get baseMarginRate {
+    if (price <= 0) {
+      return 0;
+    }
+
+    return baseMargin / price * 100;
+  }
 
   int? get daysUntilExpiration {
     if (expirationDate == null) {
@@ -142,6 +168,7 @@ class Product {
     ProductCategory? category,
     String? subCategory,
     int? price,
+    int? costPrice,
     int? stock,
     int? minimumStock,
     bool? adultProduct,
@@ -155,6 +182,7 @@ class Product {
       category: category ?? this.category,
       subCategory: subCategory ?? this.subCategory,
       price: price ?? this.price,
+      costPrice: costPrice ?? this.costPrice,
       stock: stock ?? this.stock,
       minimumStock: minimumStock ?? this.minimumStock,
       adultProduct: adultProduct ?? this.adultProduct,

@@ -19,7 +19,7 @@ extension PromotionTypeLabel on PromotionType {
 }
 
 class Promotion {
-  Promotion({
+  const Promotion({
     required this.id,
     required this.productId,
     required this.type,
@@ -31,17 +31,20 @@ class Promotion {
   });
 
   final int id;
+
   final int productId;
 
   final PromotionType type;
 
   final DateTime startDate;
+
   final DateTime endDate;
 
   final int? percent;
+
   final int? specialPrice;
 
-  bool enabled;
+  final bool enabled;
 
   bool get isActive {
     if (!enabled) {
@@ -57,5 +60,31 @@ class Promotion {
     final end = DateTime(endDate.year, endDate.month, endDate.day);
 
     return !today.isBefore(start) && !today.isAfter(end);
+  }
+
+  Promotion copyWith({
+    int? id,
+    int? productId,
+    PromotionType? type,
+    DateTime? startDate,
+    DateTime? endDate,
+    int? percent,
+    int? specialPrice,
+    bool? enabled,
+    bool clearPercent = false,
+    bool clearSpecialPrice = false,
+  }) {
+    return Promotion(
+      id: id ?? this.id,
+      productId: productId ?? this.productId,
+      type: type ?? this.type,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      percent: clearPercent ? null : percent ?? this.percent,
+      specialPrice: clearSpecialPrice
+          ? null
+          : specialPrice ?? this.specialPrice,
+      enabled: enabled ?? this.enabled,
+    );
   }
 }

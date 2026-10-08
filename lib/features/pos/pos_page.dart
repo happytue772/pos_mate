@@ -57,6 +57,9 @@ class _PosPageState extends State<PosPage> {
   Widget build(BuildContext context) {
     final pos = context.watch<PosProvider>();
     final shiftProvider = context.watch<ShiftProvider>();
+    if (shiftProvider.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final auth = context.watch<AuthProvider>();
 
     if (!shiftProvider.hasActiveShift) {

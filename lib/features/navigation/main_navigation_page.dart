@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../services/audit_log_service.dart';
 import '../home/home_page.dart';
 import '../inventory/inventory_page.dart';
 import '../management/management_page.dart';
@@ -21,7 +22,9 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    final isAdmin = auth.currentUser?.isAdmin ?? false;
+    AuditLogService.instance.setCurrentUser(auth.currentUser);
+
+    final isAdmin = auth.currentUser?.isAdmin == true;
 
     final pages = <Widget>[
       const HomePage(),
@@ -48,24 +51,24 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       ),
       if (isAdmin)
         const NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
+          icon: Icon(Icons.admin_panel_settings_outlined),
+          selectedIcon: Icon(Icons.admin_panel_settings),
           label: '관리',
         ),
     ];
 
-    final safeIndex = _currentIndex < pages.length ? _currentIndex : 0;
+    final safeIndex = _currentIndex >= pages.length ? 0 : _currentIndex;
 
     return Scaffold(
       body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: safeIndex,
+        destinations: destinations,
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
-        destinations: destinations,
       ),
     );
   }

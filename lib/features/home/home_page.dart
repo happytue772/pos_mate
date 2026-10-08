@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/shift_provider.dart';
 import '../auth/login_page.dart';
+import '../shift/cash_movement_page.dart';
 import '../shift/shift_close_page.dart';
 import '../shift/shift_open_page.dart';
 
@@ -14,8 +15,13 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pos = context.watch<PosProvider>();
+
     final auth = context.watch<AuthProvider>();
-    final shiftProvider = context.watch<ShiftProvider>();
+
+    final shift = context.watch<ShiftProvider>();
+    if (shift.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     final lowStockCount = pos.products
         .where((product) => product.isLowStock)
@@ -36,8 +42,6 @@ class HomePage extends StatelessWidget {
           ),
           IconButton(
             onPressed: () {
-              final shift = context.read<ShiftProvider>();
-
               if (shift.hasActiveShift) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('근무 마감 후 로그아웃할 수 있습니다.')),
@@ -71,43 +75,80 @@ class HomePage extends StatelessWidget {
                     '근무 상태',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
+
                   const SizedBox(height: 8),
+
                   Text(
-                    shiftProvider.hasActiveShift
-                        ? '${shiftProvider.activeShift!.cashierName} 근무 중'
+                    shift.hasActiveShift
+                        ? '${shift.activeShift!.cashierName} 근무 중'
                         : '현재 진행 중인 근무가 없습니다.',
                   ),
+
                   const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => shiftProvider.hasActiveShift
-                                ? const ShiftClosePage()
-                                : const ShiftOpenPage(),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        shiftProvider.hasActiveShift ? '근무 마감' : '근무 시작',
+
+                  if (!shift.hasActiveShift)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ShiftOpenPage(),
+                            ),
+                          );
+                        },
+                        child: const Text('근무 시작'),
                       ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CashMovementPage(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.account_balance_wallet_outlined,
+                            ),
+                            label: const Text('현금 입출금'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ShiftClosePage(),
+                                ),
+                              );
+                            },
+                            child: const Text('근무 마감'),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 20),
 
           const Text(
             '오늘의 현황',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           _InfoCard(
             title: '등록 상품',
@@ -128,13 +169,13 @@ class HomePage extends StatelessWidget {
           ),
 
           _InfoCard(
-            title: '완료 판매',
+            title: '판매 건수',
             value: '${pos.completedSales}건',
             icon: Icons.receipt_long_outlined,
           ),
 
           _InfoCard(
-            title: '판매 금액',
+            title: '순매출',
             value: '${pos.totalSalesAmount}원',
             icon: Icons.payments_outlined,
           ),
@@ -152,13 +193,15 @@ class _InfoCard extends StatelessWidget {
   });
 
   final String title;
+
   final String value;
+
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),

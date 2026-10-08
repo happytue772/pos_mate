@@ -5,6 +5,7 @@ extension ShiftStatusLabel on ShiftStatus {
     switch (this) {
       case ShiftStatus.open:
         return '근무 중';
+
       case ShiftStatus.closed:
         return '근무 마감';
     }
@@ -20,6 +21,8 @@ class ShiftSummary {
     required this.mobileSales,
     required this.refundCount,
     required this.refundAmount,
+    required this.cashInAmount,
+    required this.cashOutAmount,
     required this.expectedCash,
   });
 
@@ -28,11 +31,18 @@ class ShiftSummary {
   final int totalSales;
 
   final int cashSales;
+
   final int cardSales;
+
   final int mobileSales;
 
   final int refundCount;
+
   final int refundAmount;
+
+  final int cashInAmount;
+
+  final int cashOutAmount;
 
   final int expectedCash;
 }
@@ -54,6 +64,7 @@ class CashierShift {
   final int id;
 
   final int cashierId;
+
   final String cashierName;
 
   final DateTime openedAt;

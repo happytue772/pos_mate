@@ -3,79 +3,101 @@ import 'package:provider/provider.dart';
 
 import '../../data/models/sale.dart';
 import '../../providers/pos_provider.dart';
+import 'partial_refund_page.dart';
+import 'refund_history_page.dart';
 
 class RefundPage extends StatelessWidget {
   const RefundPage({super.key});
+
+  String _dateTime(DateTime value) {
+    String two(int number) {
+      return number.toString().padLeft(2, '0');
+    }
+
+    return '${value.year}-'
+        '${two(value.month)}-'
+        '${two(value.day)} '
+        '${two(value.hour)}:'
+        '${two(value.minute)}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final pos = context.watch<PosProvider>();
 
+    final sales = pos.sales;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('환불 관리')),
-      body: pos.sales.isEmpty
+      appBar: AppBar(
+        title: const Text('환불 관리'),
+        actions: [
+          IconButton(
+            tooltip: '환불 이력',
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RefundHistoryPage()),
+              );
+            },
+          ),
+        ],
+      ),
+      body: sales.isEmpty
           ? const Center(child: Text('판매 내역이 없습니다.'))
           : ListView.builder(
-              itemCount: pos.sales.length,
+              padding: const EdgeInsets.all(12),
+              itemCount: sales.length,
               itemBuilder: (context, index) {
-                final sale = pos.sales[index];
+                final sale = sales[index];
 
-                final refundable = sale.status == SaleStatus.completed;
+                final fullyRefunded = sale.status == SaleStatus.refunded;
 
-                return ListTile(
-                  title: Text(sale.receiptNumber),
-                  subtitle: Text(
-                    '${sale.totalAmount}원 · '
-                    '${sale.status.label}',
-                  ),
-                  trailing: refundable
-                      ? FilledButton(
-                          onPressed: () async {
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) {
-                                return AlertDialog(
-                                  title: const Text('환불 확인'),
-                                  content: Text(
-                                    '${sale.receiptNumber}\n'
-                                    '${sale.totalAmount}원을 '
-                                    '환불하시겠습니까?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.pop(context, false);
-                                      },
-                                      child: const Text('취소'),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () {
-                                        Navigator.pop(context, true);
-                                      },
-                                      child: const Text('환불'),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-
-                            if (confirmed != true || !context.mounted) {
-                              return;
-                            }
-
-                            final success = context
-                                .read<PosProvider>()
-                                .refundSale(sale.id);
-
-                            if (success && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('환불이 완료되었습니다.')),
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    leading: Icon(
+                      fullyRefunded
+                          ? Icons.check_circle_outline
+                          : Icons.receipt_long_outlined,
+                    ),
+                    title: Text(sale.receiptNumber),
+                    subtitle: Text(
+                      '${_dateTime(sale.soldAt)}\n'
+                      '결제 ${sale.totalAmount}원 · '
+                      '환불 ${sale.refundedAmount}원 · '
+                      '잔여 ${sale.netAmount}원\n'
+                      '${sale.paymentMethod.label} · '
+                      '${sale.status.label}',
+                    ),
+                    isThreeLine: true,
+                    trailing: fullyRefunded
+                        ? const Text(
+                            '환불 완료',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          )
+                        : FilledButton(
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PartialRefundPage(sale: sale),
+                                ),
                               );
-                            }
+                            },
+                            child: const Text('환불'),
+                          ),
+                    onTap: fullyRefunded
+                        ? null
+                        : () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PartialRefundPage(sale: sale),
+                              ),
+                            );
                           },
-                          child: const Text('환불'),
-                        )
-                      : const Text('환불 완료'),
+                  ),
                 );
               },
             ),
